@@ -617,33 +617,7 @@
   /* Give date input enough room for full yyyy-mm-dd */
   .date-input { min-width: 108px; flex: 1.6; color-scheme: light; }
 
-  /* Advanced settings */
-  .advanced-toggle {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    font-size: 12px;
-    font-family: var(--font-ui);
-    cursor: pointer;
-    padding: 2px 4px;
-    border-radius: 6px;
-    transition: color 0.15s;
-    width: 100%;
-  }
-
-  .advanced-toggle:hover { color: var(--text-secondary); }
-
-  .toggle-arrow {
-    display: inline-block;
-    transition: transform 0.2s;
-    font-size: 16px;
-  }
-
-  .toggle-arrow.open { transform: rotate(90deg); }
-
+  /* Rider settings */
   .advanced-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
