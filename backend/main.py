@@ -64,17 +64,20 @@ async def log_requests(request: Request, call_next):
         raise
 
 # ---------------------------------------------------------------------------
-# CORS — allow SvelteKit dev server
+# CORS — allow SvelteKit dev & deployed frontend
 # ---------------------------------------------------------------------------
+
+cors_origins_env = os.getenv("CORS_ORIGINS", "*")
+if cors_origins_env.strip() == "*":
+    allowed_origins = ["*"]
+else:
+    allowed_origins = [orig.strip() for orig in cors_origins_env.split(",") if orig.strip()]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",   # SvelteKit dev server
-        "http://localhost:4173",   # SvelteKit preview
-        "http://127.0.0.1:5173",
-    ],
-    allow_credentials=True,
+    allow_origins=allowed_origins,
+    allow_credentials=True if allowed_origins != ["*"] else False,
+    allow_origin_regex="https?://.*" if allowed_origins == ["*"] else None,
     allow_methods=["*"],
     allow_headers=["*"],
 )

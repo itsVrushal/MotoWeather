@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { routeStore } from '$lib/stores/routeStore.js';
-  import { fetchRoute, fetchPitstops } from '$lib/utils/api.js';
+  import { fetchRoute, fetchPitstops, API_BASE } from '$lib/utils/api.js';
   import { getGeocodeCache, setGeocodeCache, getRecentTrips } from '$lib/utils/cache.js';
 
   // --- State ---
@@ -79,7 +79,7 @@
     if (cached) return cached;
 
     try {
-      const res = await fetch(`http://localhost:8000/api/geocode?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`${API_BASE}/api/geocode?q=${encodeURIComponent(query)}`);
       if (!res.ok) return [];
       const data = await res.json();
       const results = data.results || [];

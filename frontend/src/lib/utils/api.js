@@ -6,7 +6,9 @@ import { routeStore } from '$lib/stores/routeStore.js';
 import { get } from 'svelte/store';
 import { getCache, setCache, getRouteCacheKey, saveRecentTrip, TTL } from '$lib/utils/cache.js';
 
-const API_BASE = 'http://localhost:8000';
+export const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL)
+  ? import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '')
+  : 'http://localhost:8000';
 
 /**
  * Apply a route payload to the store.
