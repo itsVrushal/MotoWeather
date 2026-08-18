@@ -1,6 +1,8 @@
 <script>
+  import { onMount } from 'svelte';
   import { routeStore } from '$lib/stores/routeStore.js';
   import { fetchRoute, fetchPitstops } from '$lib/utils/api.js';
+  import { getGeocodeCache, setGeocodeCache, getRecentTrips } from '$lib/utils/cache.js';
 
   // --- State ---
   let startAddress   = '';
@@ -9,11 +11,12 @@
   let preferredTime  = getDefaultTime();
   let avgSpeed       = 60;
   let tankRange      = 300;
-  let windowMin      = 90;
+  let windowMin      = 240;
   let submitting     = false;
   let formError      = '';
   let showAdvanced   = false;
   let vehicleType    = 'petrol'; // 'petrol' or 'ev'
+  let recentTrips    = [];
 
   // Resolved coordinates from autocomplete (avoids re-geocoding)
   let startCoord = null; // { lat, lon }
@@ -25,6 +28,17 @@
   let showStartDrop    = false;
   let showEndDrop      = false;
   let startTimer, endTimer;
+
+  onMount(() => {
+    recentTrips = getRecentTrips();
+  });
+
+  function pickRecent(t) {
+    startAddress = t.start;
+    endAddress = t.end;
+    startCoord = (t.start_lat && t.start_lon) ? { lat: t.start_lat, lon: t.start_lon } : null;
+    endCoord = (t.end_lat && t.end_lon) ? { lat: t.end_lat, lon: t.end_lon } : null;
+  }
 
   function getDefaultDate() {
     const d = new Date();
@@ -44,9 +58,10 @@
 
   // Type → icon mapping for autocomplete
   const TYPE_ICONS = {
-    city: '🏙️', town: '🏘️', village: '🏡', suburb: '🏘️', neighbourhood: '🏘️',
-    fuel: '⛽', cafe: '☕', restaurant: '🍽️', hotel: '🏨',
-    hospital: '🏥', school: '🏫', college: '🎓', university: '🎓',
+    city: '🏙️', town: '🏘️', village: '🏡', hamlet: '🏠',
+    suburb: '📍', neighbourhood: '📍',
+    fuel: '⛽', charging_station: '⚡',
+    restaurant: '🍽️', cafe: '☕', hotel: '🏨',
     park: '🌳', forest: '🌲', beach: '🏖️', mountain: '⛰️',
     temple: '🛕', mosque: '🕌', church: '⛪',
     administrative: '🗺️', road: '🛣️', motorway: '🛣️',
@@ -57,40 +72,30 @@
   }
 
   async function fetchSuggestions(query) {
-    if (!query || query.length < 3) return [];
+    if (!query || query.length < 2) return [];
+
+    // 1. Check client-side browser cache (instant 0ms)
+    const cached = getGeocodeCache(query);
+    if (cached) return cached;
+
     try {
-      const url = new URL('https://nominatim.openstreetmap.org/search');
-      url.searchParams.set('q', query);
-      url.searchParams.set('format', 'json');
-      url.searchParams.set('limit', '8');
-      url.searchParams.set('countrycodes', 'in');
-      url.searchParams.set('addressdetails', '1');
-      url.searchParams.set('viewbox', MH_VIEWBOX);
-      url.searchParams.set('bounded', '0');
-
-      const res = await fetch(url.toString(), { headers: { 'Accept-Language': 'en' } });
+      const res = await fetch(`http://localhost:8000/api/geocode?q=${encodeURIComponent(query)}`);
+      if (!res.ok) return [];
       const data = await res.json();
+      const results = data.results || [];
 
-      return data.map(r => {
-        const a = r.address || {};
-        const parts = [
-          r.name || a.amenity || a.building || a.road,
-          a.suburb || a.neighbourhood,
-          a.city || a.town || a.village,
-          a.state,
-        ].filter(Boolean);
-        const deduped = parts.filter((p, i) => p !== parts[i - 1]);
-        const typeKey = r.type || r.class || '';
-        return {
-          short: deduped.slice(0, 3).join(', ') || r.display_name,
-          full:  r.display_name,
-          lat:   parseFloat(r.lat),
-          lon:   parseFloat(r.lon),
-          type:  typeKey,
-          icon:  getIcon(typeKey),
-          subtype: a.amenity || a.building || r.class || '',
-        };
-      });
+      const formatted = results.map(r => ({
+        short: r.name.split(',').slice(0, 3).join(', ').trim() || r.name,
+        full:  r.name,
+        lat:   parseFloat(r.lat),
+        lon:   parseFloat(r.lon),
+        type:  'city',
+        icon:  '📍',
+        subtype: r.provider || '',
+      }));
+
+      setGeocodeCache(query, formatted);
+      return formatted;
     } catch { return []; }
   }
 
@@ -252,6 +257,25 @@
       </div>
     </div>
 
+    <!-- Quick Recent Routes -->
+    {#if recentTrips && recentTrips.length > 0}
+      <div class="recent-trips-row">
+        <span class="recent-label">⚡ Recent:</span>
+        <div class="recent-chips">
+          {#each recentTrips.slice(0, 3) as trip}
+            <button
+              type="button"
+              class="recent-chip"
+              on:click={() => pickRecent(trip)}
+              title="{trip.start} ➔ {trip.end}"
+            >
+              {trip.start.split(',')[0]} ➔ {trip.end.split(',')[0]}
+            </button>
+          {/each}
+        </div>
+      </div>
+    {/if}
+
     <!-- Time row -->
     <div class="time-row">
       <span class="time-label">🕐 Depart</span>
@@ -291,8 +315,8 @@
           </div>
         </label>
         <label class="adv-label adv-full">
-          <span>Window ±{windowMin} min</span>
-          <input class="form-range" type="range" min="15" max="180" step="15" bind:value={windowMin} />
+          <span>Optimization Window ±{(windowMin / 60).toFixed(1)} hrs ({windowMin} min)</span>
+          <input class="form-range" type="range" min="60" max="360" step="30" bind:value={windowMin} />
         </label>
       </div>
     <!-- Error -->
@@ -409,6 +433,50 @@
   }
 
   .gm-input::placeholder { color: var(--text-muted); }
+
+  /* Quick Recent Trips */
+  .recent-trips-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    margin-bottom: 2px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .recent-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .recent-chips {
+    display: flex;
+    gap: 4px;
+  }
+
+  .recent-chip {
+    font-size: 10px;
+    font-weight: 700;
+    color: #475569;
+    background: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 99px;
+    padding: 2px 8px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+  }
+
+  .recent-chip:hover {
+    background: #ffffff;
+    border-color: rgba(249, 115, 22, 0.4);
+    color: #ea580c;
+  }
 
   /* Autocomplete dropdown */
   .suggest-drop {

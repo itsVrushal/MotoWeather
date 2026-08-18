@@ -1,24 +1,48 @@
-Here are the 3 commands you need to run the app. You can run these in three separate terminal/PowerShell windows:
+# 🏍️ MotoWeather Maharashtra Ride Planner
 
-### 1. OSRM Routing Server (Docker)
-This runs the OSRM backend on port 5000 using the Western Zone data we processed.
-```powershell
-docker run --name osrm-server -d -p 5000:5000 -v "d:/git reps/Motomaps/osrm/data:/data" ghcr.io/project-osrm/osrm-backend osrm-routed --algorithm mld /data/western-zone-260814.osrm
-```
-*(Note: I already started this for you in the background earlier, so it might still be running. If it says the name `osrm-server` is in use, you're good to go!)*
+Intelligent Motorcycle & Car Highway Route Planner with Real-time Weather, Daylight Analysis, and Multi-Provider Routing (Mapbox & Google Maps).
 
-### 2. Python FastAPI Backend
-This runs the orchestration and weather API server on port 8000.
+---
+
+## 🚀 Quick Start Guide
+
+### 1. Python FastAPI Backend (Port 8000)
+Runs the route optimization, weather briefing, and Dual API routing engine:
 ```powershell
 cd "d:\git reps\Motomaps\backend"
 python -m uvicorn main:app --reload --port 8000
 ```
 
-### 3. SvelteKit Frontend
-This runs the UI dashboard on port 5173.
+### 2. SvelteKit Frontend (Port 5173)
+Runs the dashboard and MapLibre visual cockpit:
 ```powershell
 cd "d:\git reps\Motomaps\frontend"
 npm run dev
 ```
 
-Once all three are running, just open **http://localhost:5173** in your browser to plan your ride! Let me know if you hit any errors.
+### 3. Optional Local OSRM Server (Offline Routing)
+If you want to route 100% offline without external APIs, run the local OSRM Docker container:
+```powershell
+docker run --name osrm-server -d -p 5000:5000 -v "d:/git reps/Motomaps/osrm/data:/data" ghcr.io/project-osrm/osrm-backend osrm-routed --algorithm mld /data/western-zone-260814.osrm
+```
+
+---
+
+## ⚙️ Multi-Provider Routing & Zero-Billing Protection
+
+You can toggle the routing engine in [`backend/.env`](backend/.env):
+```env
+# Options: 'hybrid' (Mapbox -> Google -> OSRM), 'mapbox', 'google', 'osrm'
+ROUTING_PROVIDER=hybrid
+
+# API Keys
+MAPBOX_ACCESS_TOKEN=sk.eyJ1I...
+GOOGLE_MAPS_API_KEY=AIzaSy...
+
+# Monthly Free Tier Hard Quotas (Circuit-Breakers set at ~90% of free limit)
+MAPBOX_MONTHLY_LIMIT=90000
+GOOGLE_MONTHLY_LIMIT=8500
+```
+- **Mapbox Directions API v5:** Primary routing (100,000 free requests/mo).
+- **Google Maps Directions API:** Automatic failover.
+- **Quota Guard:** Internal SQLite tracking prevents any accidental credit card charges.

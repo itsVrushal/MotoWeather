@@ -30,9 +30,9 @@ load_dotenv()
 logger = setup_logger("optimizer")
 
 # Default weights — configurable via .env
-_WEIGHT_RAIN = float(os.getenv("WEIGHT_RAIN", "0.6"))
-_WEIGHT_WIND = float(os.getenv("WEIGHT_WIND", "0.3"))
-_WEIGHT_DELAY = float(os.getenv("WEIGHT_DELAY", "0.1"))
+_WEIGHT_RAIN = float(os.getenv("WEIGHT_RAIN", "0.40"))
+_WEIGHT_WIND = float(os.getenv("WEIGHT_WIND", "0.15"))
+_WEIGHT_DELAY = float(os.getenv("WEIGHT_DELAY", "0.05"))
 
 # Normalisation reference values
 _MAX_PRECIP_REFERENCE = 100.0   # % (max possible)
@@ -50,7 +50,24 @@ class DepartureScore:
     rain_component: float
     wind_component: float
     delay_component: float
+    traffic_component: float = 0.0
     is_optimal: bool = False
+
+
+def _compute_traffic_penalty(dt: datetime) -> float:
+    """Estimates rush hour city bottleneck penalty (0.0 to 1.0)."""
+    hr = dt.hour + dt.minute / 60.0
+    # Evening rush: 17:30 - 20:30
+    if 17.5 <= hr <= 20.5:
+        return 0.45
+    # Morning rush: 08:30 - 10:30
+    if 8.5 <= hr <= 10.5:
+        return 0.35
+    # Mid-day normal
+    if 11.0 <= hr <= 17.0:
+        return 0.15
+    # Early morning / late night clear roads
+    return 0.02
 
 
 # ---------------------------------------------------------------------------
@@ -63,27 +80,44 @@ def _score_departure(
     window_minutes: int,
     precip_pcts: list[float],
     wind_kmhs: list[float],
+    temps: list[float],
+    etas: list[datetime],
     w_r: float,
     w_w: float,
     w_d: float,
 ) -> DepartureScore:
     """
-    Compute S(t) for a single candidate departure time.
-
-    precip_pcts and wind_kmhs are the weather values at each waypoint
-    for this specific departure time.
+    Compute S(t) for a single candidate departure time including weather, traffic, heat, & daylight.
     """
-    # R(t): mean precipitation probability across all waypoints, normalised 0–1
     r_t = (sum(precip_pcts) / len(precip_pcts)) / _MAX_PRECIP_REFERENCE if precip_pcts else 0.0
-
-    # W(t): max wind speed, normalised 0–1
     w_t = (max(wind_kmhs) / _MAX_WIND_REFERENCE) if wind_kmhs else 0.0
 
-    # D(t): absolute offset from preferred time, normalised by window size
     delta_minutes = abs((departure - preferred).total_seconds() / 60.0)
-    d_t = delta_minutes / window_minutes  # 0 at preferred, 1 at ±window edge
+    d_t = delta_minutes / max(1, window_minutes)
 
-    total = w_r * r_t + w_w * w_t + w_d * d_t
+    # Traffic penalty
+    tr_penalty = _compute_traffic_penalty(departure)
+
+    # Heat stress penalty (penalize scorching temps > 35°C)
+    max_temp = max(temps) if temps else 25.0
+    heat_penalty = max(0.0, (max_temp - 35.0) / 10.0) if max_temp > 35.0 else 0.0
+
+    # Night riding risk (penalize riding after dark on unlit highways)
+    night_count = sum(1 for e in etas if (e.hour + e.minute / 60.0 < 6.25 or e.hour + e.minute / 60.0 > 18.75))
+    night_penalty = night_count / max(1, len(etas))
+
+    w_tr = 0.15
+    w_heat = 0.10
+    w_night = 0.15
+
+    total = (
+        w_r * r_t
+        + w_w * w_t
+        + w_d * d_t
+        + w_tr * tr_penalty
+        + w_heat * heat_penalty
+        + w_night * night_penalty
+    )
 
     return DepartureScore(
         departure_time=departure,
@@ -91,6 +125,7 @@ def _score_departure(
         rain_component=round(w_r * r_t, 4),
         wind_component=round(w_w * w_t, 4),
         delay_component=round(w_d * d_t, 4),
+        traffic_component=round(w_tr * tr_penalty, 4),
     )
 
 
@@ -110,22 +145,7 @@ async def find_optimal_departure(
 ) -> tuple[datetime, list[DepartureScore]]:
     """
     Slide the departure window and find the time that minimises S(t).
-
-    Args:
-        preferred_departure: Rider's preferred departure time.
-        window_minutes:      Half-width of the search window.
-        step_minutes:        Step size between candidate times.
-        sampled_coords:      List of (lat, lon) sampled waypoints.
-        avg_speed_kmh:       Rider's average speed.
-        weather_fetcher:     Async function to fetch weather batch.
-        eta_calculator:      Function to compute ETA from cumulative distance.
-        cumulative_kms:      Cumulative km values for each sampled waypoint.
-
-    Returns:
-        (optimal_departure, all_scores)
-        where all_scores is the full list for charting, sorted by departure time.
     """
-    # Build list of candidate departure times
     candidates: list[datetime] = []
     t = preferred_departure - timedelta(minutes=window_minutes)
     end_t = preferred_departure + timedelta(minutes=window_minutes)
@@ -137,17 +157,16 @@ async def find_optimal_departure(
     scores: list[DepartureScore] = []
 
     for candidate in candidates:
-        # Compute ETAs for this departure time
         etas = [
             eta_calculator(candidate, cum_km, avg_speed_kmh)
             for cum_km in cumulative_kms
         ]
 
-        # Fetch weather for all waypoints at their respective ETAs
         weather_results = await weather_fetcher(sampled_coords, etas)
 
         precip_pcts = [w.precip_pct for w in weather_results]
         wind_kmhs = [w.wind_kmh for w in weather_results]
+        temps = [w.temp_c for w in weather_results]
 
         score = _score_departure(
             departure=candidate,
@@ -155,13 +174,14 @@ async def find_optimal_departure(
             window_minutes=window_minutes,
             precip_pcts=precip_pcts,
             wind_kmhs=wind_kmhs,
+            temps=temps,
+            etas=etas,
             w_r=_WEIGHT_RAIN,
             w_w=_WEIGHT_WIND,
             w_d=_WEIGHT_DELAY,
         )
         scores.append(score)
 
-    # Mark optimal
     optimal_score = min(scores, key=lambda s: s.total_score)
     optimal_score.is_optimal = True
 

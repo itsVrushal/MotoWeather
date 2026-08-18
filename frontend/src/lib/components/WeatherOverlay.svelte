@@ -47,6 +47,12 @@
       [0.3,  [56,  189, 248]],  // twilight / dusk
       [1,    [245, 158, 11]],   // golden daylight
     ],
+    traffic: [
+      [0,    [16,  185, 129]],  // emerald (low / free flow)
+      [0.35, [245, 158, 11]],   // amber (moderate)
+      [0.7,  [249, 115, 22]],   // orange (heavy congestion)
+      [1,    [220, 38,  38]],   // crimson (severe bottleneck)
+    ],
   };
 
   function sampleColor(scale, t) {
@@ -70,6 +76,7 @@
     wind: v => Math.min(v / 80, 1),
     temp: v => Math.min(Math.max((v - 10) / 40, 0), 1),
     daylight: v => v,
+    traffic: v => v,
   };
 
   // ─── Geometry helpers ────────────────────────────────────────────────
@@ -78,55 +85,56 @@
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
     const a = Math.sin(dLat/2) ** 2 +
-      Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLon/2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon/2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
 
-  function buildProgressArray(geometry) {
-    const dists = [0];
-    for (let i = 1; i < geometry.length; i++) {
-      dists.push(dists[i-1] + haversine(
-        geometry[i-1].lat, geometry[i-1].lon,
-        geometry[i].lat,   geometry[i].lon,
-      ));
+  function findNearestWaypoint(pt, waypoints) {
+    let best = waypoints[0], bestD = Infinity;
+    for (const wp of waypoints) {
+      const d = haversine(pt.lat, pt.lon, wp.lat, wp.lon);
+      if (d < bestD) { bestD = d; best = wp; }
     }
-    const total = dists[dists.length - 1] || 1;
-    return dists.map(d => d / total);
+    return best;
   }
 
-  function waypointProgresses(geometry, waypoints, geoProgress) {
-    return waypoints.map(wp => {
-      let bestDist = Infinity, bestIdx = 0;
-      for (let i = 0; i < geometry.length; i++) {
-        const d = haversine(wp.lat, wp.lon, geometry[i].lat, geometry[i].lon);
-        if (d < bestDist) { bestDist = d; bestIdx = i; }
-      }
-      return geoProgress[bestIdx];
-    });
-  }
-
-  function isDaytime(etaIso) {
-    if (!etaIso) return 1;
-    const d = new Date(etaIso);
+  function isDaytime(etaStr) {
+    if (!etaStr) return true;
+    const d = new Date(etaStr);
     const hr = d.getHours() + d.getMinutes() / 60;
-    return (hr >= 6.25 && hr <= 18.75) ? 1.0 : 0.0;
+    return hr >= 6.25 && hr <= 18.75;
+  }
+
+  function getVal(wp, layer) {
+    if (layer === 'rain') return norms.rain(wp.precip_pct ?? 0);
+    if (layer === 'wind') return norms.wind(wp.wind_kmh ?? 0);
+    if (layer === 'temp') return norms.temp(wp.temp_c ?? 25);
+    if (layer === 'daylight') return isDaytime(wp.eta) ? 1 : 0;
+    if (layer === 'traffic') {
+      const tMap = { low: 0.0, moderate: 0.35, heavy: 0.7, severe: 1.0 };
+      return tMap[wp.traffic_level || 'low'] ?? 0.0;
+    }
+    return 0;
   }
 
   function buildGradientExpr(geometry, waypoints, layer) {
-    const geoProgress = buildProgressArray(geometry);
-    const wpProgress  = waypointProgresses(geometry, waypoints, geoProgress);
+    const totalPts = geometry.length;
+    if (totalPts < 2) return '#3b82f6';
 
-    const getRaw = (wp) => {
-      if (layer === 'rain') return wp.precip_pct;
-      if (layer === 'wind') return wp.wind_kmh;
-      if (layer === 'temp') return wp.temp_c;
-      return isDaytime(wp.eta);
-    };
+    const numStops = Math.min(totalPts, 80);
+    const step = (totalPts - 1) / (numStops - 1);
+    const stops = [];
 
-    const stops = waypoints.map((wp, i) => ({
-      p: Math.max(0, Math.min(1, wpProgress[i])),
-      c: sampleColor(scales[layer], norms[layer](getRaw(wp))),
-    })).sort((a, b) => a.p - b.p);
+    for (let i = 0; i < numStops; i++) {
+      const pIdx = Math.round(i * step);
+      const pt = geometry[pIdx];
+      const prog = Math.round((pIdx / (totalPts - 1)) * 1000) / 1000;
+      const wp = findNearestWaypoint(pt, waypoints);
+      const val = getVal(wp, layer);
+      const color = sampleColor(scales[layer], val);
+      stops.push({ p: prog, c: color });
+    }
 
     if (stops[0].p > 0) stops.unshift({ p: 0, c: stops[0].c });
     if (stops[stops.length-1].p < 1) stops.push({ p: 1, c: stops[stops.length-1].c });
@@ -168,6 +176,7 @@
           wind: wp.wind_kmh,
           temp: wp.temp_c,
           weathercode: wp.weathercode,
+          traffic: wp.traffic_level || 'low',
         },
       })),
     };
@@ -247,6 +256,7 @@
           <div style="font-size:12px; margin-bottom:2px;">🌧️ Rain: <strong>${Number(props.precip).toFixed(0)}%</strong></div>
           <div style="font-size:12px; margin-bottom:2px;">💨 Wind: <strong>${Number(props.wind).toFixed(0)} km/h</strong></div>
           <div style="font-size:12px; margin-bottom:2px;">🌡️ Temp: <strong>${Number(props.temp).toFixed(0)}°C</strong></div>
+          <div style="font-size:12px; margin-bottom:2px;">🚦 Traffic: <strong style="text-transform:capitalize;">${props.traffic || 'Free Flow'}</strong></div>
           <div style="font-size:11px; margin-top:4px; color:#64748b;">${isDay ? '☀️ Daylight' : '🌙 Night Driving'}</div>
         </div>
       `)
@@ -261,57 +271,55 @@
     }
   }
 
-  function clearLayers() {
-    if (!map) return;
-    try {
-      if (map.getSource(BASE_ID)) map.getSource(BASE_ID).setData({ type: 'FeatureCollection', features: [] });
-      if (map.getSource(WP_ID))   map.getSource(WP_ID).setData({ type: 'FeatureCollection', features: [] });
-    } catch {}
+  $: {
+    const { geometry, waypoints } = $routeStore;
+    if (map && geometry && geometry.length > 0 && waypoints && waypoints.length > 0) {
+      renderLayers(geometry, waypoints);
+    }
   }
 
-  function removeLayers() {
-    if (!map) return;
-    try {
+  onMount(() => {
+    map = getMap();
+    if (map) {
+      if (map.loaded()) {
+        const { geometry, waypoints } = $routeStore;
+        if (geometry?.length && waypoints?.length) renderLayers(geometry, waypoints);
+      } else {
+        map.on('load', () => {
+          const { geometry, waypoints } = $routeStore;
+          if (geometry?.length && waypoints?.length) renderLayers(geometry, waypoints);
+        });
+      }
+    }
+  });
+
+  onDestroy(() => {
+    popup?.remove();
+    if (map) {
       if (map.getLayer(WP_ID))   map.removeLayer(WP_ID);
       if (map.getLayer(HEAT_ID)) map.removeLayer(HEAT_ID);
       if (map.getLayer(BASE_ID)) map.removeLayer(BASE_ID);
       if (map.getSource(WP_ID))   map.removeSource(WP_ID);
       if (map.getSource(BASE_ID)) map.removeSource(BASE_ID);
-    } catch {}
-  }
-
-  onMount(() => {
-    map = getMap();
-  });
-
-  $: {
-    const { geometry, waypoints } = $routeStore;
-    if (map && geometry && geometry.length > 0 && waypoints && waypoints.length > 0) {
-      renderLayers(geometry, waypoints);
-    } else if (map && (!geometry || geometry.length === 0)) {
-      clearLayers();
     }
-  }
-
-  onDestroy(() => { popup?.remove(); removeLayers(); });
+  });
 </script>
 
-<!-- Filter buttons rendered inside map-wrapper via slot, positioned absolutely -->
-{#if $routeStore.waypoints.length > 0}
-  <div class="heatmap-controls fade-in">
+{#if $routeStore.geometry && $routeStore.geometry.length > 0}
+  <div class="heatmap-controls">
     <div class="heatmap-label">Map Layer</div>
     <div class="heatmap-btns">
       <button
         class="hm-btn {activeLayer === 'rain' ? 'active rain' : ''}"
         on:click={() => setLayer('rain')}
-        title="Precipitation probability"
+        title="Rain probability along route"
       >
         🌧️ Rain
       </button>
       <button
         class="hm-btn {activeLayer === 'wind' ? 'active wind' : ''}"
         on:click={() => setLayer('wind')}
-        title="Wind speed"
+        title="Wind speed along route"
       >
         💨 Wind
       </button>
@@ -321,6 +329,13 @@
         title="Temperature"
       >
         🌡️ Temp
+      </button>
+      <button
+        class="hm-btn {activeLayer === 'traffic' ? 'active traffic' : ''}"
+        on:click={() => setLayer('traffic')}
+        title="Live Traffic Congestion & Roadworks"
+      >
+        🚦 Traffic
       </button>
       <button
         class="hm-btn {activeLayer === 'daylight' ? 'active daylight' : ''}"
@@ -369,6 +384,17 @@
           <span class="swatch" style="background:#f97316"></span><span class="swatch-label">Hot</span>
           <span class="swatch" style="background:#ef4444"></span><span class="swatch-label">Scorch</span>
         </div>
+      {:else if activeLayer === 'traffic'}
+        <div class="legend-title">Live Traffic Congestion</div>
+        <div class="legend-bar" style="background: linear-gradient(to right, #10b981, #f59e0b, #f97316, #dc2626)"></div>
+        <div class="legend-ticks">
+          <span>🟢 Free Flow</span><span>🟡 Mod</span><span>🔴 Jam</span>
+        </div>
+        <div class="legend-swatches">
+          <span class="swatch" style="background:#10b981"></span><span class="swatch-label">Free Flow</span>
+          <span class="swatch" style="background:#f59e0b"></span><span class="swatch-label">Moderate</span>
+          <span class="swatch" style="background:#dc2626"></span><span class="swatch-label">Heavy</span>
+        </div>
       {:else if activeLayer === 'daylight'}
         <div class="legend-title">Daylight vs Night Driving</div>
         <div class="legend-bar" style="background: linear-gradient(to right, #f59e0b, #38bdf8, #1e1b4b)"></div>
@@ -393,6 +419,7 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
+    pointer-events: auto;
   }
 
   .heatmap-label {
@@ -456,6 +483,12 @@
     border-color: #84cc16;
     color: #65a30d;
     box-shadow: 0 4px 14px rgba(132, 204, 22, 0.25);
+  }
+
+  .hm-btn.active.traffic {
+    border-color: #ef4444;
+    color: #dc2626;
+    box-shadow: 0 4px 14px rgba(239, 68, 68, 0.25);
   }
 
   .hm-btn.active.daylight {

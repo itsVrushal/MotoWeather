@@ -68,3 +68,5 @@ venv.bak/
 # Operating System
 .DS_Store
 Thumbs.db
+
+data/api_usage.db

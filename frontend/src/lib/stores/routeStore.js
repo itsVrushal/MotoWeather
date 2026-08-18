@@ -20,6 +20,7 @@ import { writable } from 'svelte/store';
  * @property {number} wind_kmh
  * @property {number} temp_c
  * @property {number} weathercode
+ * @property {string} [traffic_level]
  */
 
 /**
@@ -29,48 +30,44 @@ import { writable } from 'svelte/store';
  * @property {number} rain_component
  * @property {number} wind_component
  * @property {number} delay_component
+ * @property {number} [traffic_component]
  * @property {boolean} is_optimal
  */
 
 /**
  * @typedef {Object} Pitstop
- * @property {'fuel'|'food'|'shelter'} type
+ * @property {string} type
+ * @property {string} [sub_type]
  * @property {number} lat
  * @property {number} lon
  * @property {string} name
  * @property {number} dist_from_route_km
+ * @property {number} route_dist_from_last_stop_km
  * @property {number} at_waypoint_index
  * @property {string} eta
+ * @property {number} [rating]
+ * @property {number} [user_ratings_total]
+ * @property {boolean} [open_now]
+ * @property {string} [vicinity]
  */
 
 /**
  * @typedef {Object} Briefing
  * @property {string} optimal_departure
+ * @property {string} [preferred_departure]
  * @property {string} departure_reason
+ * @property {Object} [departure_advice]
  * @property {number} max_wind_kmh
- * @property {Coordinate|null} max_wind_location
- * @property {string|null} max_wind_eta
  * @property {number} worst_rain_pct
- * @property {Coordinate|null} worst_rain_location
  * @property {string|null} worst_rain_eta
  * @property {string[]} pitstop_summary
+ * @property {Array} [highways]
+ * @property {Object} [daylight]
+ * @property {Array} [hazard_segments]
+ * @property {string} [traffic_summary]
+ * @property {Array} [roadwork_alerts]
  */
 
-/**
- * @typedef {Object} RouteState
- * @property {boolean} loading
- * @property {string|null} error
- * @property {string|null} optimal_departure
- * @property {number} total_distance_km
- * @property {number} estimated_duration_hours
- * @property {HazardScore[]} hazard_scores
- * @property {Waypoint[]} waypoints
- * @property {Pitstop[]} pitstops
- * @property {Briefing|null} briefing
- * @property {string|null} selected_departure  - manual override
- */
-
-/** @type {import('svelte/store').Writable<RouteState>} */
 export const routeStore = writable({
   loading: false,
   error: null,
@@ -83,14 +80,16 @@ export const routeStore = writable({
   briefing: null,
   selected_departure: null,
   geometry: [],
-  /** Map<isoString, RouteResponse> — cached results for each departure slot */
   departure_cache: {},
-  /** true while background pre-fetch is running */
   prefetch_loading: false,
-  /** last submitted payload — used by bar clicks and pre-fetcher */
   last_request: null,
-  /** true while background pitstop fetch is running */
   isFetchingPitstops: false,
+
+  // Mode: 'planned' vs 'recommended'
+  active_view_mode: 'planned',
+  planned_data: null,
+  recommended_data: null,
+  is_fetching_recommended: false,
 });
 
 /** Reset to clean state */
@@ -111,5 +110,9 @@ export function resetRoute() {
     prefetch_loading: false,
     last_request: null,
     isFetchingPitstops: false,
+    active_view_mode: 'planned',
+    planned_data: null,
+    recommended_data: null,
+    is_fetching_recommended: false,
   });
 }

@@ -49,13 +49,13 @@ class RouteRequest(BaseModel):
     avg_speed_kmh: float = Field(default=60.0, ge=20.0, le=150.0)
     tank_range_km: float = Field(default=300.0, ge=50.0, le=800.0)
     window_minutes: int = Field(
-        default=90,
+        default=240,
         ge=15,
-        le=180,
+        le=720,
         description="Half-width of departure search window in minutes (±this value)",
     )
     window_step_minutes: int = Field(
-        default=15, ge=5, le=30,
+        default=30, ge=5, le=60,
         description="Step size in minutes between candidate departure times",
     )
     pitstop_buffer_km: float = Field(
@@ -91,6 +91,7 @@ class Waypoint(BaseModel):
     wind_kmh: float
     temp_c: float
     weathercode: int
+    traffic_level: Optional[str] = Field(default="low", description="'low', 'moderate', 'heavy', 'severe'")
 
 
 class HazardScore(BaseModel):
@@ -99,6 +100,7 @@ class HazardScore(BaseModel):
     rain_component: float
     wind_component: float
     delay_component: float
+    traffic_component: Optional[float] = 0.0
     is_optimal: bool
 
 
@@ -120,7 +122,7 @@ class DaylightSummary(BaseModel):
 class HazardSegment(BaseModel):
     title: str
     stretch_km: str
-    hazard_type: str  # 'rain', 'wind', 'night'
+    hazard_type: str  # 'rain', 'wind', 'night', 'traffic', 'roadwork'
     severity: str     # 'low', 'moderate', 'high'
     description: str
 
@@ -145,10 +147,15 @@ class Pitstop(BaseModel):
     at_waypoint_index: int
     eta: datetime
     osm_id: Optional[int] = None
+    rating: Optional[float] = None
+    user_ratings_total: Optional[int] = None
+    open_now: Optional[bool] = None
+    vicinity: Optional[str] = None
 
 
 class Briefing(BaseModel):
     optimal_departure: datetime
+    preferred_departure: Optional[datetime] = None
     departure_reason: str
     departure_advice: Optional[DepartureAdvice] = None
     max_wind_kmh: float
@@ -157,10 +164,12 @@ class Briefing(BaseModel):
     worst_rain_pct: float
     worst_rain_location: Optional[Coordinate] = None
     worst_rain_eta: Optional[datetime] = None
-    pitstop_summary: list[str]
+    pitstop_summary: list[str] = Field(default_factory=list)
     highways: list[HighwaySegment] = Field(default_factory=list)
     daylight: Optional[DaylightSummary] = None
     hazard_segments: list[HazardSegment] = Field(default_factory=list)
+    traffic_summary: Optional[str] = None
+    roadwork_alerts: list[str] = Field(default_factory=list)
 
 
 
