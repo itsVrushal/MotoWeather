@@ -90,9 +90,17 @@ app.add_middleware(
 app.include_router(route_router)
 
 
-# ---------------------------------------------------------------------------
-# Health check
-# ---------------------------------------------------------------------------
+@app.get("/", tags=["meta"])
+async def root() -> dict:
+    """Root endpoint welcoming visitors and providing documentation links."""
+    return {
+        "status": "online",
+        "service": "Moto-Weather Router API",
+        "version": "0.1.0",
+        "docs": "/docs",
+        "health": "/health",
+    }
+
 
 @app.get("/health", tags=["meta"])
 async def health() -> dict:
