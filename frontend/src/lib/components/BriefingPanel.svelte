@@ -4,9 +4,8 @@
 
   // Collapsible section states
   let openDaylight = true;
-  let openHighways = true;
-  let openHazards = true;
   let openMilestones = true;
+  let openHighways = true;
 
   $: isRecommended = $routeStore.active_view_mode === 'recommended';
   $: activeData = (isRecommended && $routeStore.recommended_data) ? $routeStore.recommended_data : ($routeStore.planned_data || $routeStore);
@@ -16,7 +15,9 @@
   $: displayDep = isRecommended
     ? (activeData.selected_departure || activeData.optimal_departure || briefing?.optimal_departure)
     : ($routeStore.planned_data?.selected_departure || briefing?.preferred_departure || activeData.optimal_departure);
-  $: pitstops   = activeData.pitstops || $routeStore.pitstops || [];
+  $: pitstops   = (activeData.pitstops && activeData.pitstops.length > 0)
+    ? activeData.pitstops
+    : ($routeStore.pitstops && $routeStore.pitstops.length > 0 ? $routeStore.pitstops : ($routeStore.planned_data?.pitstops || []));
 
   function fmtTime(iso) {
     if (!iso) return '—';
@@ -168,7 +169,7 @@
       {/if}
     </div>
 
-    <!-- ────────── DAYLIGHT & VISIBILITY (COLLAPSIBLE) ────────── -->
+    <!-- ────────── 1. DAYLIGHT & VISIBILITY (COLLAPSIBLE) ────────── -->
     {#if briefing.daylight}
       <div class="collapsible-section card glass-panel">
         <button type="button" class="section-toggle-header" on:click={() => openDaylight = !openDaylight}>
@@ -191,64 +192,7 @@
       </div>
     {/if}
 
-    <!-- ────────── HIGHWAYS & EXPRESSWAYS (COLLAPSIBLE) ────────── -->
-    {#if briefing.highways && briefing.highways.length > 0}
-      <div class="collapsible-section card glass-panel">
-        <button type="button" class="section-toggle-header" on:click={() => openHighways = !openHighways}>
-          <div class="header-left">
-            <span class="toggle-icon">{openHighways ? '▼' : '▶'}</span>
-            <span class="section-heading">🛣️ Route Highways & Expressways</span>
-          </div>
-        </button>
-
-        {#if openHighways}
-          <div class="section-body fade-in">
-            <div class="highway-chips">
-              {#each briefing.highways as hw}
-                <div class="hw-chip">
-                  <span class="hw-name" title={hw.name}>{hw.name}</span>
-                  <span class="hw-dist">{hw.distance_km} km ({hw.pct}%)</span>
-                </div>
-              {/each}
-            </div>
-          </div>
-        {/if}
-      </div>
-    {/if}
-
-    <!-- ────────── HAZARDS & CAUTION STRETCHES (COLLAPSIBLE) ────────── -->
-    {#if briefing.hazard_segments && briefing.hazard_segments.length > 0}
-      <div class="collapsible-section card glass-panel">
-        <button type="button" class="section-toggle-header" on:click={() => openHazards = !openHazards}>
-          <div class="header-left">
-            <span class="toggle-icon">{openHazards ? '▼' : '▶'}</span>
-            <span class="section-heading">⚠️ Route Warnings & Cautions</span>
-          </div>
-          <span class="hazard-count-badge">{briefing.hazard_segments.length}</span>
-        </button>
-
-        {#if openHazards}
-          <div class="section-body fade-in">
-            <div class="hazards-list">
-              {#each briefing.hazard_segments as haz}
-                <div class="hazard-card {haz.severity}">
-                  <div class="hazard-top">
-                    <div class="hazard-badge-wrap">
-                      <span class="hazard-icon">{haz.hazard_type === 'rain' ? '🌧️' : haz.hazard_type === 'wind' ? '💨' : haz.hazard_type === 'traffic' ? '🚦' : haz.hazard_type === 'roadwork' ? '🚧' : '⚠️'}</span>
-                      <span class="hazard-badge">{haz.title}</span>
-                    </div>
-                    <span class="hazard-stretch">{haz.stretch_km}</span>
-                  </div>
-                  <div class="hazard-desc">{haz.description}</div>
-                </div>
-              {/each}
-            </div>
-          </div>
-        {/if}
-      </div>
-    {/if}
-
-    <!-- ────────── HIGHWAY JOURNEY MILESTONES (COLLAPSIBLE) ────────── -->
+    <!-- ────────── 2. HIGHWAY JOURNEY MILESTONES (COLLAPSIBLE & INTERNALLY SCROLLABLE) ────────── -->
     <div class="collapsible-section card glass-panel">
       <button type="button" class="section-toggle-header" on:click={() => openMilestones = !openMilestones}>
         <div class="header-left">
@@ -269,7 +213,7 @@
               <div class="pitstop-skeleton-text">Finding top-rated plazas & verified charging hubs...</div>
             </div>
           {:else if pitstops && pitstops.length > 0}
-            <div class="timeline-list">
+            <div class="timeline-list scrollable-sub-container">
               {#each pitstops as ps}
                 {@const b = getStopBadge(ps)}
                 <div class="timeline-item">
@@ -307,6 +251,31 @@
       {/if}
     </div>
 
+    <!-- ────────── 3. HIGHWAYS & EXPRESSWAYS (COLLAPSIBLE & INTERNALLY SCROLLABLE) ────────── -->
+    {#if briefing.highways && briefing.highways.length > 0}
+      <div class="collapsible-section card glass-panel">
+        <button type="button" class="section-toggle-header" on:click={() => openHighways = !openHighways}>
+          <div class="header-left">
+            <span class="toggle-icon">{openHighways ? '▼' : '▶'}</span>
+            <span class="section-heading">🛣️ Route Highways & Expressways</span>
+          </div>
+        </button>
+
+        {#if openHighways}
+          <div class="section-body fade-in">
+            <div class="highway-chips scrollable-sub-container">
+              {#each briefing.highways as hw}
+                <div class="hw-chip">
+                  <span class="hw-name" title={hw.name}>{hw.name}</span>
+                  <span class="hw-dist">{hw.distance_km} km ({hw.pct}%)</span>
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
+      </div>
+    {/if}
+
   </div>
 {/if}
 
@@ -323,6 +292,23 @@
     box-sizing: border-box;
     scrollbar-width: thin;
     scrollbar-color: rgba(249, 115, 22, 0.3) transparent;
+  }
+
+  /* Internal Scrollable Containers */
+  .scrollable-sub-container {
+    max-height: 250px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+    padding-right: 4px;
+  }
+
+  .scrollable-sub-container::-webkit-scrollbar {
+    width: 4px;
+  }
+  .scrollable-sub-container::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.4);
+    border-radius: 4px;
   }
 
   /* View Mode Toggle Pill Switcher */
@@ -682,87 +668,6 @@
     color: #64748b;
     flex-shrink: 0;
     white-space: nowrap;
-  }
-
-  /* Hazards Section — Ambient Modern Alert Cards without harsh left bar */
-  .hazard-count-badge {
-    font-size: 10px;
-    font-weight: 800;
-    background: #fee2e2;
-    color: #dc2626;
-    padding: 2px 6px;
-    border-radius: 99px;
-    flex-shrink: 0;
-  }
-
-  .hazards-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .hazard-card {
-    padding: 10px 12px;
-    border-radius: 10px;
-    background: linear-gradient(135deg, rgba(255, 247, 237, 0.9) 0%, rgba(255, 255, 255, 0.8) 100%);
-    border: 1px solid rgba(249, 115, 22, 0.22);
-    box-shadow: 0 2px 8px rgba(249, 115, 22, 0.05);
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .hazard-card.high {
-    background: linear-gradient(135deg, rgba(254, 242, 242, 0.92) 0%, rgba(255, 255, 255, 0.82) 100%);
-    border-color: rgba(239, 68, 68, 0.22);
-    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.05);
-  }
-
-  .hazard-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 6px;
-  }
-
-  .hazard-badge-wrap {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    min-width: 0;
-  }
-
-  .hazard-icon {
-    font-size: 13px;
-    line-height: 1;
-    flex-shrink: 0;
-  }
-
-  .hazard-badge {
-    font-size: 11px;
-    font-weight: 800;
-    color: #9a3412;
-  }
-
-  .hazard-card.high .hazard-badge {
-    color: #991b1b;
-  }
-
-  .hazard-stretch {
-    font-size: 10px;
-    font-weight: 700;
-    color: #64748b;
-    white-space: nowrap;
-    background: rgba(255, 255, 255, 0.8);
-    padding: 1px 5px;
-    border-radius: 4px;
-  }
-
-  .hazard-desc {
-    font-size: 11px;
-    color: #334155;
-    line-height: 1.4;
-    word-break: break-word;
   }
 
   /* Milestones Section */

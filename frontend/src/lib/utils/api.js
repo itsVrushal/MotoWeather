@@ -39,22 +39,31 @@ function applyRouteData(data, keepPitstops = false, keepScores = false) {
 export function switchViewMode(mode) {
   const st = get(routeStore);
   if (mode === 'planned' && st.planned_data) {
+    const effectivePitstops = (st.planned_data.pitstops && st.planned_data.pitstops.length > 0)
+      ? st.planned_data.pitstops
+      : (st.pitstops || st.recommended_data?.pitstops || []);
+
     routeStore.update(s => ({
       ...s,
       active_view_mode: 'planned',
       waypoints: st.planned_data.waypoints,
-      pitstops: st.planned_data.pitstops || [],
+      pitstops: effectivePitstops,
       briefing: st.planned_data.briefing,
       selected_departure: st.planned_data.selected_departure || st.planned_data.briefing?.preferred_departure,
     }));
-  } else if (mode === 'recommended' && st.recommended_data) {
+  } else if (mode === 'recommended' && (st.recommended_data || st.planned_data)) {
+    const rec = st.recommended_data || st.planned_data;
+    const effectivePitstops = (rec.pitstops && rec.pitstops.length > 0)
+      ? rec.pitstops
+      : (st.planned_data?.pitstops || st.pitstops || []);
+
     routeStore.update(s => ({
       ...s,
       active_view_mode: 'recommended',
-      waypoints: st.recommended_data.waypoints,
-      pitstops: st.recommended_data.pitstops || [],
-      briefing: st.recommended_data.briefing,
-      selected_departure: st.recommended_data.selected_departure || st.recommended_data.optimal_departure,
+      waypoints: rec.waypoints,
+      pitstops: effectivePitstops,
+      briefing: rec.briefing,
+      selected_departure: rec.selected_departure || rec.optimal_departure,
     }));
   }
 }
@@ -266,30 +275,37 @@ function applyPitstopsToStore(data, targetMode) {
     let updatedPlanned = s.planned_data;
     let updatedRecommended = s.recommended_data;
 
-    if (targetMode === 'planned' && updatedPlanned) {
-      updatedPlanned = {
-        ...updatedPlanned,
-        pitstops: data.pitstops,
-        briefing: { ...updatedPlanned.briefing, pitstop_summary: data.pitstop_summary },
-      };
-    } else if (targetMode === 'recommended' && updatedRecommended) {
-      updatedRecommended = {
-        ...updatedRecommended,
-        pitstops: data.pitstops,
-        briefing: { ...updatedRecommended.briefing, pitstop_summary: data.pitstop_summary },
-      };
+    if (updatedPlanned) {
+      if (targetMode === 'planned' || !updatedPlanned.pitstops) {
+        updatedPlanned = {
+          ...updatedPlanned,
+          pitstops: data.pitstops,
+          briefing: { ...updatedPlanned.briefing, pitstop_summary: data.pitstop_summary },
+        };
+      }
     }
 
-    const isCurrentView = s.active_view_mode === targetMode;
+    if (updatedRecommended) {
+      if (targetMode === 'recommended' || !updatedRecommended.pitstops) {
+        updatedRecommended = {
+          ...updatedRecommended,
+          pitstops: data.pitstops,
+          briefing: { ...updatedRecommended.briefing, pitstop_summary: data.pitstop_summary },
+        };
+      }
+    }
+
+    const effectivePitstops = data.pitstops || s.pitstops || [];
 
     return {
       ...s,
       planned_data: updatedPlanned,
       recommended_data: updatedRecommended,
-      pitstops: isCurrentView ? data.pitstops : s.pitstops,
-      briefing: isCurrentView
-        ? { ...s.briefing, pitstop_summary: data.pitstop_summary }
-        : s.briefing,
+      pitstops: effectivePitstops,
+      briefing: {
+        ...s.briefing,
+        pitstop_summary: data.pitstop_summary || s.briefing?.pitstop_summary,
+      },
       isFetchingPitstops: false,
     };
   });

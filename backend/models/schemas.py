@@ -125,6 +125,8 @@ class HazardSegment(BaseModel):
     hazard_type: str  # 'rain', 'wind', 'night', 'traffic', 'roadwork'
     severity: str     # 'low', 'moderate', 'high'
     description: str
+    lat: Optional[float] = None
+    lon: Optional[float] = None
 
 
 class DepartureAdvice(BaseModel):

@@ -90,6 +90,9 @@ export const routeStore = writable({
   planned_data: null,
   recommended_data: null,
   is_fetching_recommended: false,
+
+  // Active Map Layer: 'rain' | 'wind' | 'temp' | 'traffic' | 'daylight'
+  active_heatmap_layer: 'rain',
 });
 
 /** Reset to clean state */
@@ -114,5 +117,6 @@ export function resetRoute() {
     planned_data: null,
     recommended_data: null,
     is_fetching_recommended: false,
+    active_heatmap_layer: 'rain',
   });
 }

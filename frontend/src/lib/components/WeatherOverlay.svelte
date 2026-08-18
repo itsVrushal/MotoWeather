@@ -265,6 +265,7 @@
 
   function setLayer(layer) {
     activeLayer = layer;
+    routeStore.update(s => ({ ...s, active_heatmap_layer: layer }));
     const { geometry, waypoints } = $routeStore;
     if (map && map.getLayer(HEAT_ID) && geometry?.length && waypoints?.length) {
       map.setPaintProperty(HEAT_ID, 'line-gradient', buildGradientExpr(geometry, waypoints, activeLayer));

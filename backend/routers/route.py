@@ -90,7 +90,7 @@ def compute_daylight_summary(departure: datetime, total_hours: float) -> Dayligh
 
 
 def extract_hazard_segments(waypoints: list[Waypoint], roadwork_alerts: list[str]) -> list[HazardSegment]:
-    """Group waypoints with adverse weather, traffic, or construction into clear hazard cards."""
+    """Group waypoints with adverse weather, traffic, or construction into clear hazard cards with map coordinates."""
     segments: list[HazardSegment] = []
 
     # 1. High wind stretches
@@ -98,14 +98,16 @@ def extract_hazard_segments(waypoints: list[Waypoint], roadwork_alerts: list[str
     if windy_wps:
         start_km = min(wp.cumulative_km for wp in windy_wps)
         end_km = max(wp.cumulative_km for wp in windy_wps)
-        max_w = max(wp.wind_kmh for wp in windy_wps)
+        worst_wind_wp = max(windy_wps, key=lambda w: w.wind_kmh)
         segments.append(
             HazardSegment(
                 title="High Crosswinds",
                 stretch_km=f"Km {start_km:.0f}–{end_km:.0f}",
                 hazard_type="wind",
-                severity="moderate" if max_w < 35 else "high",
-                description=f"Strong crosswinds up to {max_w:.0f} km/h. Keep steady handlebar grip on elevated flyovers.",
+                severity="moderate" if worst_wind_wp.wind_kmh < 35 else "high",
+                description=f"Strong crosswinds up to {worst_wind_wp.wind_kmh:.0f} km/h. Keep steady handlebar grip on elevated flyovers.",
+                lat=worst_wind_wp.lat,
+                lon=worst_wind_wp.lon,
             )
         )
 
@@ -114,14 +116,16 @@ def extract_hazard_segments(waypoints: list[Waypoint], roadwork_alerts: list[str
     if rain_wps:
         start_km = min(wp.cumulative_km for wp in rain_wps)
         end_km = max(wp.cumulative_km for wp in rain_wps)
-        max_r = max(wp.precip_pct for wp in rain_wps)
+        worst_rain_wp = max(rain_wps, key=lambda w: w.precip_pct)
         segments.append(
             HazardSegment(
                 title="Rain Warning Zone",
                 stretch_km=f"Km {start_km:.0f}–{end_km:.0f}",
                 hazard_type="rain",
-                severity="high" if max_r >= 65 else "moderate",
-                description=f"Precipitation probability reaches {max_r:.0f}%. Expect wet tarmac and reduced braking grip.",
+                severity="high" if worst_rain_wp.precip_pct >= 65 else "moderate",
+                description=f"Precipitation probability reaches {worst_rain_wp.precip_pct:.0f}%. Expect wet tarmac and reduced braking grip.",
+                lat=worst_rain_wp.lat,
+                lon=worst_rain_wp.lon,
             )
         )
 
@@ -130,6 +134,7 @@ def extract_hazard_segments(waypoints: list[Waypoint], roadwork_alerts: list[str
     if heavy_traffic_wps:
         start_km = min(wp.cumulative_km for wp in heavy_traffic_wps)
         end_km = max(wp.cumulative_km for wp in heavy_traffic_wps)
+        worst_traffic_wp = heavy_traffic_wps[0]
         segments.append(
             HazardSegment(
                 title="Heavy Traffic Congestion",
@@ -137,11 +142,14 @@ def extract_hazard_segments(waypoints: list[Waypoint], roadwork_alerts: list[str
                 hazard_type="traffic",
                 severity="high",
                 description="Peak city exit bottleneck / slow-moving traffic. Expect stop-and-go delays.",
+                lat=worst_traffic_wp.lat,
+                lon=worst_traffic_wp.lon,
             )
         )
 
     # 4. Roadworks & Construction alerts
-    if roadwork_alerts:
+    if roadwork_alerts and waypoints:
+        mid_wp = waypoints[len(waypoints) // 3]
         for alert in roadwork_alerts[:2]:
             segments.append(
                 HazardSegment(
@@ -150,6 +158,8 @@ def extract_hazard_segments(waypoints: list[Waypoint], roadwork_alerts: list[str
                     hazard_type="roadwork",
                     severity="moderate",
                     description=alert,
+                    lat=mid_wp.lat,
+                    lon=mid_wp.lon,
                 )
             )
 

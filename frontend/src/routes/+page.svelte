@@ -3,6 +3,7 @@
   import MapView from '$lib/components/MapView.svelte';
   import WeatherOverlay from '$lib/components/WeatherOverlay.svelte';
   import PitstopMarkers from '$lib/components/PitstopMarkers.svelte';
+  import HazardCallouts from '$lib/components/HazardCallouts.svelte';
   import RouteForm from '$lib/components/RouteForm.svelte';
   import BriefingPanel from '$lib/components/BriefingPanel.svelte';
   import { routeStore } from '$lib/stores/routeStore.js';
@@ -21,6 +22,7 @@
     <MapView>
       <WeatherOverlay />
       <PitstopMarkers />
+      <HazardCallouts />
     </MapView>
   </div>
 
