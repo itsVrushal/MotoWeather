@@ -8,5 +8,11 @@ export default defineConfig({
 			adapter: adapter()
 		})
 	],
+	preview: {
+		allowedHosts: true,
+	},
+	server: {
+		allowedHosts: true,
+	}
 });
 
