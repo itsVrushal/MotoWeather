@@ -423,6 +423,62 @@
     pointer-events: auto;
   }
 
+  @media (max-width: 639px) {
+    .heatmap-controls {
+      /* On mobile: horizontal row centered at top of map (below app chrome) */
+      bottom: auto;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      flex-direction: row;
+      align-items: center;
+      gap: 0;
+      /* glass pill container */
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-radius: 99px;
+      padding: 4px 8px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+      max-width: calc(100vw - 32px);
+      overflow-x: auto;
+      scrollbar-width: none;
+      white-space: nowrap;
+    }
+    .heatmap-controls::-webkit-scrollbar { display: none; }
+
+    .heatmap-label { display: none; }
+
+    .heatmap-btns {
+      flex-direction: row;
+      gap: 2px;
+    }
+
+    .hm-btn {
+      padding: 5px 10px;
+      font-size: 11px;
+      border-radius: 99px;
+      border-color: transparent;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .hm-btn:hover {
+      transform: none;
+    }
+
+    .hm-btn.active {
+      transform: none;
+      border-radius: 99px;
+      background: rgba(255,255,255,0.95);
+    }
+
+    /* Hide legend card on mobile to save space; user can rely on the map colors */
+    .legend-card {
+      display: none;
+    }
+  }
+
   .heatmap-label {
     font-size: 10px;
     font-weight: 800;

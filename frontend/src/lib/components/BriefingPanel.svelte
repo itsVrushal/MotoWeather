@@ -294,6 +294,16 @@
     scrollbar-color: rgba(249, 115, 22, 0.3) transparent;
   }
 
+  @media (max-width: 639px) {
+    .results-panel {
+      width: 100%;
+      max-width: 100%;
+      max-height: none;
+      overflow-y: visible;
+      padding-bottom: 16px;
+    }
+  }
+
   /* Internal Scrollable Containers */
   .scrollable-sub-container {
     max-height: 250px;

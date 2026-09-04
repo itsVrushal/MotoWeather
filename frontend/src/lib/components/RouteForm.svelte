@@ -350,6 +350,21 @@
     border-radius: var(--radius-lg);
   }
 
+  @media (max-width: 639px) {
+    .gm-panel {
+      width: 100%;
+      padding: 8px 4px 4px;
+      border-radius: 0;
+      border: none;
+      background: transparent;
+      box-shadow: none;
+    }
+    /* Inside bottom sheet, no slide-in animation */
+    .slide-in {
+      animation: none;
+    }
+  }
+
   @keyframes slideIn {
     from { opacity: 0; transform: translateX(-16px); }
     to   { opacity: 1; transform: translateX(0); }
