@@ -350,21 +350,6 @@
     border-radius: var(--radius-lg);
   }
 
-  @media (max-width: 639px) {
-    .gm-panel {
-      width: 100%;
-      padding: 8px 4px 4px;
-      border-radius: 0;
-      border: none;
-      background: transparent;
-      box-shadow: none;
-    }
-    /* Inside bottom sheet, no slide-in animation */
-    .slide-in {
-      animation: none;
-    }
-  }
-
   @keyframes slideIn {
     from { opacity: 0; transform: translateX(-16px); }
     to   { opacity: 1; transform: translateX(0); }
@@ -740,5 +725,94 @@
     background: #fff;
     color: var(--accent-orange);
     box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+
+  /* ── MOBILE: Compact form inside bottom sheet ── */
+  @media (max-width: 639px) {
+    .gm-panel {
+      width: 100%;
+      padding: 2px 2px 4px;
+      border-radius: 0;
+      border: none;
+      background: transparent;
+      box-shadow: none;
+      gap: 5px;
+    }
+
+    .slide-in {
+      animation: none;
+    }
+
+    /* Redundant header inside mobile bottom sheet */
+    .gm-header {
+      display: none;
+    }
+
+    .search-stack {
+      border-radius: 8px;
+    }
+
+    .search-field {
+      padding: 0 8px;
+      gap: 6px;
+    }
+
+    .gm-input {
+      font-size: 13px;
+      padding: 5px 0;
+    }
+
+    .route-connector {
+      margin-top: -3px;
+      margin-bottom: -3px;
+    }
+
+    .recent-trips-row {
+      margin-top: 1px;
+      margin-bottom: 1px;
+    }
+
+    .time-row {
+      margin-top: 1px;
+      margin-bottom: 1px;
+      padding: 4px 8px;
+      gap: 6px;
+    }
+
+    .time-label {
+      font-size: 11px;
+    }
+
+    .time-input input {
+      font-size: 12px;
+      padding: 3px 4px;
+    }
+
+    .advanced-grid {
+      gap: 4px;
+      margin-top: 1px;
+    }
+
+    .adv-label {
+      gap: 1px;
+      font-size: 10px;
+    }
+
+    .vehicle-toggle {
+      margin-top: 1px;
+      padding: 1px;
+    }
+
+    .veh-btn {
+      padding: 4px;
+      font-size: 11px;
+    }
+
+    .plan-btn {
+      margin-top: 5px;
+      padding: 10px;
+      font-size: 13px;
+      border-radius: 10px;
+    }
   }
 </style>

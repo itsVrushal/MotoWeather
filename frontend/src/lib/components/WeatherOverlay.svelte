@@ -272,10 +272,35 @@
     }
   }
 
+  function fitRouteBounds(geometry) {
+    if (!map || !geometry || geometry.length === 0) return;
+    try {
+      const bounds = new maplibregl.LngLatBounds();
+      for (const pt of geometry) {
+        bounds.extend([pt.lon, pt.lat]);
+      }
+      
+      const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+      const padding = isMobile
+        ? { top: 90, bottom: 90, left: 24, right: 24 }
+        : { top: 70, bottom: 70, left: 380, right: 420 };
+
+      map.fitBounds(bounds, { padding, duration: 1000, maxZoom: 15 });
+    } catch (e) {
+      console.warn('fitBounds error:', e);
+    }
+  }
+
+  let prevGeomKey = null;
   $: {
     const { geometry, waypoints } = $routeStore;
     if (map && geometry && geometry.length > 0 && waypoints && waypoints.length > 0) {
       renderLayers(geometry, waypoints);
+      const geomKey = `${geometry[0]?.lat},${geometry[0]?.lon}-${geometry[geometry.length-1]?.lat},${geometry[geometry.length-1]?.lon}-${geometry.length}`;
+      if (geomKey !== prevGeomKey) {
+        prevGeomKey = geomKey;
+        fitRouteBounds(geometry);
+      }
     }
   }
 
@@ -284,11 +309,17 @@
     if (map) {
       if (map.loaded()) {
         const { geometry, waypoints } = $routeStore;
-        if (geometry?.length && waypoints?.length) renderLayers(geometry, waypoints);
+        if (geometry?.length && waypoints?.length) {
+          renderLayers(geometry, waypoints);
+          fitRouteBounds(geometry);
+        }
       } else {
         map.on('load', () => {
           const { geometry, waypoints } = $routeStore;
-          if (geometry?.length && waypoints?.length) renderLayers(geometry, waypoints);
+          if (geometry?.length && waypoints?.length) {
+            renderLayers(geometry, waypoints);
+            fitRouteBounds(geometry);
+          }
         });
       }
     }
@@ -421,62 +452,6 @@
     flex-direction: column;
     gap: 6px;
     pointer-events: auto;
-  }
-
-  @media (max-width: 639px) {
-    .heatmap-controls {
-      /* On mobile: horizontal row centered at top of map (below app chrome) */
-      bottom: auto;
-      top: 16px;
-      left: 50%;
-      transform: translateX(-50%);
-      flex-direction: row;
-      align-items: center;
-      gap: 0;
-      /* glass pill container */
-      background: rgba(255, 255, 255, 0.88);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border-radius: 99px;
-      padding: 4px 8px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.12);
-      max-width: calc(100vw - 32px);
-      overflow-x: auto;
-      scrollbar-width: none;
-      white-space: nowrap;
-    }
-    .heatmap-controls::-webkit-scrollbar { display: none; }
-
-    .heatmap-label { display: none; }
-
-    .heatmap-btns {
-      flex-direction: row;
-      gap: 2px;
-    }
-
-    .hm-btn {
-      padding: 5px 10px;
-      font-size: 11px;
-      border-radius: 99px;
-      border-color: transparent;
-      background: transparent;
-      box-shadow: none;
-    }
-
-    .hm-btn:hover {
-      transform: none;
-    }
-
-    .hm-btn.active {
-      transform: none;
-      border-radius: 99px;
-      background: rgba(255,255,255,0.95);
-    }
-
-    /* Hide legend card on mobile to save space; user can rely on the map colors */
-    .legend-card {
-      display: none;
-    }
   }
 
   .heatmap-label {
@@ -613,5 +588,129 @@
     font-weight: 600;
     color: #334155;
     margin-right: 4px;
+  }
+
+  /* ── MOBILE: Horizontal buttons + legend card directly below ── */
+  @media (max-width: 639px) {
+    .heatmap-controls {
+      bottom: auto;
+      top: 10px;
+      left: 0;
+      right: 0;
+      z-index: 25;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      padding: 0 10px;
+      pointer-events: none;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      max-width: 100vw;
+      overflow: visible;
+    }
+
+    .heatmap-label {
+      display: none;
+    }
+
+    .heatmap-btns {
+      display: flex;
+      flex-direction: row;
+      gap: 5px;
+      align-items: center;
+      overflow-x: auto;
+      white-space: nowrap;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 99px;
+      padding: 5px 8px;
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+      max-width: calc(100vw - 20px);
+      pointer-events: auto;
+      flex-shrink: 0;
+    }
+    .heatmap-btns::-webkit-scrollbar {
+      display: none;
+    }
+
+    .hm-btn {
+      padding: 6px 11px;
+      font-size: 11px;
+      border-radius: 99px;
+      background: rgba(241, 245, 249, 0.9);
+      border: 1px solid rgba(226, 232, 240, 0.8);
+      box-shadow: none;
+      transform: none !important;
+      flex-shrink: 0;
+      gap: 4px;
+    }
+
+    .hm-btn:hover {
+      background: #ffffff;
+      transform: none !important;
+    }
+
+    .hm-btn.active {
+      background: #ffffff;
+      font-weight: 800;
+      border-color: currentColor;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      transform: none !important;
+    }
+
+    /* Placed directly BELOW the buttons row on mobile */
+    .legend-card {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 12px;
+      border-radius: 99px;
+      min-width: auto;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.95);
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+      pointer-events: auto;
+      flex-shrink: 0;
+    }
+
+    .legend-title {
+      font-size: 9px;
+      font-weight: 800;
+      text-transform: uppercase;
+      color: #334155;
+      white-space: nowrap;
+    }
+
+    .legend-bar {
+      width: 70px;
+      height: 6px;
+      border-radius: 99px;
+      flex-shrink: 0;
+    }
+
+    .legend-ticks {
+      display: flex;
+      gap: 4px;
+      font-size: 8px;
+      color: #64748b;
+      font-weight: 700;
+      margin-top: 0;
+      white-space: nowrap;
+    }
+
+    .legend-swatches {
+      display: none;
+    }
   }
 </style>
